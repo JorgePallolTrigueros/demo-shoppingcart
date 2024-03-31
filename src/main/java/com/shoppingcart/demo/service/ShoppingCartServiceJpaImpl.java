@@ -92,6 +92,7 @@ public class ShoppingCartServiceJpaImpl implements ShoppingCartService{
                 .map(productShoppingCartEntity -> getProductFromEntity(productShoppingCartEntity, subtotal))
                 .toList()
         );
+        response.setSubtotal(subtotal.get());
         return Optional.of(response);
     }
 
@@ -176,7 +177,6 @@ public class ShoppingCartServiceJpaImpl implements ShoppingCartService{
                 .map(productShoppingCartEntity -> getProductFromEntity(productShoppingCartEntity, subtotal))
                 .toList()
         );
-        //TODO hay un error en el caso de que ya exista el carrito de compra
         response.setSubtotal(subtotal.get());
         shoppingCartEntityRepository.saveAndFlush(shoppingCartItemEntity);
 
