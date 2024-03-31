@@ -59,8 +59,11 @@ public class ShoppingController implements ShoppingCartApi {
 
     @Override
     public ResponseEntity<Void> deleteShoppingCartByUserId(String userId) {
-
-        return ResponseEntity.ok().build();
+        final boolean result  = shoppingCartService.deleteShoppingCartByUserId(userId);
+        if(result){
+            return ResponseEntity.ok().build();
+        }
+        return ResponseEntity.badRequest().build();
     }
 
 

@@ -184,6 +184,7 @@ public class ShoppingCartServiceJpaImpl implements ShoppingCartService{
     }
 
     @Override
+    @Transactional
     public boolean deleteShoppingCartByUserId(String userId) {
         Optional<ShoppingCartItemEntity> shoppingCartEntityOptional = shoppingCartEntityRepository.findById(userId);
 
