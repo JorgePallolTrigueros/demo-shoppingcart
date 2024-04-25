@@ -2,7 +2,7 @@ package com.shoppingcart.demo.controller;
 
 import com.shoppingcart.api.ShoppingCartApi;
 import com.shoppingcart.demo.service.ShoppingCartService;
-import com.shoppingcart.model.InvoiceItem;
+import com.shoppingcart.model.InvoiceShoppingCart;
 import com.shoppingcart.model.ShoppingCartItem;
 import com.shoppingcart.model.ShoppingCartItemRequest;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -53,7 +53,7 @@ public class ShoppingController implements ShoppingCartApi {
     }
 
     @Override
-    public ResponseEntity<InvoiceItem> buyShoppingCart(String userId) {
+    public ResponseEntity<InvoiceShoppingCart> buyShoppingCart(String userId) {
         return ResponseEntity.ok(shoppingCartService.buyShoppingCart(userId));
     }
 

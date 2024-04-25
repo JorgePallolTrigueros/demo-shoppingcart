@@ -8,6 +8,7 @@ import jakarta.validation.constraints.PositiveOrZero;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.ToString;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -32,6 +33,7 @@ public class ShoppingCartItemEntity {
     private String id;
 
     @OneToMany(mappedBy = "shoppingCartEntity",cascade = CascadeType.ALL)
+    @ToString.Exclude
     private List<ProductShoppingCartEntity> products = new ArrayList<>();
 
 }

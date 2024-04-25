@@ -123,7 +123,7 @@ public class ShoppingCartServiceDemoImpl implements ShoppingCartService{
     }
 
     @Override
-    public InvoiceItem buyShoppingCart(String userId) {
+    public InvoiceShoppingCart buyShoppingCart(String userId) {
         //TODO guardar y restar los productos del inventario
         return null;
     }

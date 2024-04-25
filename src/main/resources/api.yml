@@ -47,7 +47,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/InvoiceItem'
+                $ref: '#/components/schemas/InvoiceShoppingCart'
 
   /shopping-cart/{userId}:
     delete:
@@ -132,7 +132,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Product'
-    InvoiceItem:
+    InvoiceShoppingCart:
       type: object
       properties:
         id:

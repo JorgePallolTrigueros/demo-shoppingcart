@@ -1,6 +1,7 @@
 package com.shoppingcart.demo.service;
 
-import com.shoppingcart.model.InvoiceItem;
+
+import com.shoppingcart.model.InvoiceShoppingCart;
 import com.shoppingcart.model.ShoppingCartItem;
 import com.shoppingcart.model.ShoppingCartItemRequest;
 
@@ -18,5 +19,5 @@ public interface ShoppingCartService {
     boolean deleteShoppingCartByUserId(String userId);
 
 
-    InvoiceItem buyShoppingCart(String userId);
+    InvoiceShoppingCart buyShoppingCart(String userId);
 }

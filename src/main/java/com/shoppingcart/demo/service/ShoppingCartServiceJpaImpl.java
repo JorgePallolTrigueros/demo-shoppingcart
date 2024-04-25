@@ -1,14 +1,13 @@
 package com.shoppingcart.demo.service;
 
-import com.shoppingcart.demo.dao.entity.ProductEntity;
-import com.shoppingcart.demo.dao.entity.ProductShoppingCartEntity;
-import com.shoppingcart.demo.dao.entity.ShoppingCartItemEntity;
-import com.shoppingcart.demo.dao.repository.ProductEntityRepository;
+import com.shoppingcart.demo.dao.entity.*;
+import com.shoppingcart.demo.dao.repository.InvoiceEntityRepository;
 import com.shoppingcart.demo.dao.repository.ShoppingCartEntityRepository;
 import com.shoppingcart.demo.exception.ProductNotFoundException;
 import com.shoppingcart.demo.exception.ShoppingCartInvalidProductsException;
 import com.shoppingcart.demo.exception.ShoppingCartNotFoundException;
-import com.shoppingcart.model.InvoiceItem;
+
+import com.shoppingcart.model.InvoiceShoppingCart;
 import com.shoppingcart.model.Product;
 import com.shoppingcart.model.ShoppingCartItem;
 import com.shoppingcart.model.ShoppingCartItemRequest;
@@ -20,6 +19,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -31,8 +32,12 @@ import java.util.stream.Collectors;
 public class ShoppingCartServiceJpaImpl implements ShoppingCartService{
 
     private final ShoppingCartEntityRepository shoppingCartEntityRepository;
-    private final ProductEntityRepository productEntityRepository;
-    
+    private final ProductService productService;
+    private final InvoiceEntityRepository invoiceEntityRepository;
+
+
+
+
     @PostConstruct
     void init(){
         log.info("Se ha creado: ShoppingCartServiceJpaImpl");
@@ -86,12 +91,13 @@ public class ShoppingCartServiceJpaImpl implements ShoppingCartService{
         subtotal.set(BigDecimal.ZERO);
 
         response.setId(shoppingCartItemEntity.getId());
-        response.setProducts(shoppingCartItemEntity
+        List<Product> productList = shoppingCartItemEntity
                 .getProducts()
                 .stream()
                 .map(productShoppingCartEntity -> getProductFromEntity(productShoppingCartEntity, subtotal))
-                .toList()
-        );
+                .toList();
+
+        response.setProducts(productList);
         response.setSubtotal(subtotal.get());
         return Optional.of(response);
     }
@@ -142,7 +148,7 @@ public class ShoppingCartServiceJpaImpl implements ShoppingCartService{
                 .getProducts()
                 .stream()
                 .map(productRequest -> {
-                    final Optional<ProductEntity> productResult = productEntityRepository.findById(productRequest.getId());
+                    final Optional<Product> productResult = productService.findProductById(productRequest.getId());
 
                     if(productResult.isEmpty()){
                         throw new ProductNotFoundException("Product not found by id:" + productRequest.getId());
@@ -150,9 +156,9 @@ public class ShoppingCartServiceJpaImpl implements ShoppingCartService{
 
                     ProductShoppingCartEntity productShoppingCartEntity = new ProductShoppingCartEntity();
 
-                    ProductEntity productEntity = productResult.get();
+                    Product product = productResult.get();
 
-                    productShoppingCartEntity.setProductId(productEntity.getId());
+                    productShoppingCartEntity.setProductId(product.getId());
                     productShoppingCartEntity.setQuantity(productRequest.getQuantity());
                     productShoppingCartEntity.setShoppingCartId(shoppingCartItemEntity.getId());
 
@@ -199,69 +205,138 @@ public class ShoppingCartServiceJpaImpl implements ShoppingCartService{
     }
 
     @Override
-    public InvoiceItem buyShoppingCart(String userId) {
+    public InvoiceShoppingCart buyShoppingCart(String userId) {
+
+        //aplicar validaciones
 
         Optional<ShoppingCartItemEntity> shoppingCartItemEntityOptional = this.shoppingCartEntityRepository.findById(userId);
 
+        // 1. Que el carrito exista
         if(shoppingCartItemEntityOptional.isEmpty()){
             throw new ShoppingCartNotFoundException();
         }
         ShoppingCartItemEntity shoppingCartItemEntity = shoppingCartItemEntityOptional.get();
 
-        boolean shoppingCartIsNotEmpty = shoppingCartItemEntity
+
+        /**
+         * ----------------------------------------------------
+         *           Temporal S.L.
+         *           B11223344
+         *
+         *     Fecha: 16/04/2024 20:06:56
+         *
+         * ---------------------------------------------------
+         *  DESC               |Cantidad| Precion Unit. | Subtotal
+         *
+         * Teclado Gamer       |   1    |     60        |  60 EUR
+         * Mouse Gamer         |   2    |     30        |  60 EUR
+         * Pantalla 29"        |   1    |    300        | 300 EUR
+         *
+         * ----------------------------------------------------
+         *                    Resumen
+         * Subtotal:      420  EUR
+         * IVA:             21 %
+         * Total IVA:   88,20  EUR
+         * Total Pagar: 508,20 EUR
+         *
+         */
+
+        InvoiceEntity invoiceEntity = new InvoiceEntity();
+        invoiceEntity.setDatetime(OffsetDateTime.now());
+        invoiceEntity.setId(userId+invoiceEntity.getDatetime().toEpochSecond());
+        invoiceEntity.setBusinessName("Temporal S.L.");
+        invoiceEntity.setBusinessId("B11223344");
+
+
+        AtomicReference<BigDecimal> subtotal = new AtomicReference<>();
+        subtotal.set(BigDecimal.ZERO);
+
+        InvoiceEntity finalInvoiceEntity = invoiceEntity;
+        List<InvoiceProductEntity> invoiceProductEntities = shoppingCartItemEntity
                 .getProducts()
                 .stream()
-                .filter(Objects::nonNull)
-                .allMatch(product-> Objects.nonNull(product.getQuantity()) && product.getQuantity().compareTo(BigDecimal.ZERO) > 0);
+                .map(productRequest-> {
+                    if(Objects.isNull(productRequest.getQuantity()) || productRequest.getQuantity().compareTo(BigDecimal.ZERO) <= 0){
+                        throw new ShoppingCartInvalidProductsException();
+                    }
+                    final Product productFound = getProductFromEntity(productRequest,subtotal);
+                    if(productFound.getQuantity().compareTo(productRequest.getQuantity()) < 0){
+                        throw new IllegalArgumentException("Insufficient product to process shopping cart, product id: "+productRequest.getId());
+                    }
+                    final InvoiceProductEntity invoiceProductEntity = new InvoiceProductEntity();
+                    invoiceProductEntity.setId(productFound.getId());
+                    invoiceProductEntity.setName(productFound.getName());
+                    invoiceProductEntity.setCategory(productFound.getCategory());
+                    invoiceProductEntity.setDescription(productFound.getDescription());
+                    invoiceProductEntity.setPrice(productFound.getPrice());
+                    invoiceProductEntity.setSubtotal(productFound.getPrice().multiply(productRequest.getQuantity()));
+                    invoiceProductEntity.setQuantity(productRequest.getQuantity());
+                    invoiceProductEntity.setInvoiceEntity(finalInvoiceEntity);
 
-        if(!shoppingCartIsNotEmpty){
-            throw new ShoppingCartInvalidProductsException();
-        }
+                    return invoiceProductEntity;
+                }).toList();
+
+        invoiceEntity.setProducts(invoiceProductEntities);
+
+        invoiceEntity.setSubtotal(subtotal.get());
+        invoiceEntity.setTaxDescription("IVA");
+        invoiceEntity.setTax(BigDecimal.valueOf(0.21));
+
+
+        invoiceEntity.setTotalTax(invoiceEntity.getSubtotal().multiply( invoiceEntity.getTax()));
+        invoiceEntity.setTotal( invoiceEntity.getTotalTax().add(invoiceEntity.getTotalTax()));
+
+
+        invoiceEntity = invoiceEntityRepository.saveAndFlush(invoiceEntity);
+
+        InvoiceShoppingCart invoiceItem = new InvoiceShoppingCart();
+        invoiceItem.setId(invoiceEntity.getId());
+        invoiceItem.setBusinessId(invoiceEntity.getBusinessId());
+        invoiceItem.setBusinessName(invoiceEntity.getBusinessName());
+        invoiceItem.setDatetime(invoiceEntity.getDatetime());
+        invoiceItem.setSubtotal(invoiceEntity.getSubtotal());
+        invoiceItem.setTax(invoiceEntity.getTax());
+        invoiceItem.setTaxDescription(invoiceEntity.getTaxDescription());
+        invoiceItem.setTotalTax(invoiceEntity.getTotalTax());
+        invoiceItem.setTotal(invoiceEntity.getTotal());
+
+        invoiceItem.setProducts(invoiceEntity.getProducts().stream().map(
+                invoiceProductEntity -> {
+                    Product product = new Product();
+
+                    product.setId(invoiceProductEntity.getId());
+                    product.setName(invoiceProductEntity.getName());
+                    product.setDescription(invoiceProductEntity.getDescription());
+                    product.setCategory(invoiceProductEntity.getCategory());
+                    product.setPrice(invoiceProductEntity.getPrice());
+                    product.setQuantity(invoiceProductEntity.getQuantity());
+                    product.setSubtotal(invoiceProductEntity.getSubtotal());
+
+                    return product;
+                }
+
+        ).toList());
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-        //TODO guardar y restar los productos del inventario
-        //si hay suficiente stock se procesa
-        //si no hay stock debe eliminarlo del carrito y guardar,
-        // ademas debe notificar al usuario de que no hay existencias de ese producto
-        return null;
+        return invoiceItem;
     }
 
     private Product getProductFromEntity(ProductShoppingCartEntity productShoppingCartEntity, AtomicReference<BigDecimal> subtotal) {
         BigDecimal subtotalProduct = BigDecimal.ZERO;
 
-        Product product= new Product();
+        final Optional<Product> productResult = productService.findProductById(productShoppingCartEntity.getProductId());
 
-        product.setId(productShoppingCartEntity.getProductId());
-        product.setQuantity(productShoppingCartEntity.getQuantity());
-
-        final Optional<ProductEntity> productResult = productEntityRepository.findById(productShoppingCartEntity.getProductId());
 
         if(productResult.isEmpty()){
             throw new ProductNotFoundException("Product not found by id: "+ productShoppingCartEntity.getProductId());
         }
 
-        final ProductEntity productEntity = productResult.get();
+        Product product = productResult.get();
 
-        product.setName(productEntity.getName());
-        product.setGalleries(productEntity.getGalleries());
-        product.setDescription(productEntity.getDescription());
-        product.setPrice(productEntity.getPrice());
-        product.setCategory(productEntity.getCategory());
-
-        subtotalProduct = product.getPrice().multiply(product.getQuantity());
+        if( Objects.nonNull( product.getPrice()) && Objects.nonNull(product.getQuantity()) ){
+            subtotalProduct = product.getPrice().multiply(product.getQuantity());
+        }
 
         product.setSubtotal(subtotalProduct);
 

@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import lombok.Data;
+import lombok.ToString;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.util.CollectionUtils;
 
@@ -66,6 +67,7 @@ public class ProductEntity {
     private BigDecimal quantity;
 
 
+    @ToString.Exclude
     @OneToMany(cascade = CascadeType.ALL,mappedBy = "productEntity")
     private List<GalleryEntity> galleriesEntity=new ArrayList<>();
 
